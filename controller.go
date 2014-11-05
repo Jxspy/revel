@@ -150,9 +150,9 @@ func (c *Controller) RenderHtml(html string) Result {
 func (c *Controller) Todo() Result {
 	c.Response.Status = http.StatusNotImplemented
 	return c.RenderError(&Error{
-		Title:       "TODO",
-		Description: "This action is not implemented",
-	})
+	Title:       "TODO",
+	Description: "This action is not implemented",
+})
 }
 
 // NotFound returns an HTTP 404 Not Found response whose body is the
@@ -164,9 +164,9 @@ func (c *Controller) NotFound(msg string, objs ...interface{}) Result {
 	}
 	c.Response.Status = http.StatusNotFound
 	return c.RenderError(&Error{
-		Title:       "Not Found",
-		Description: finalText,
-	})
+	Title:       "Not Found",
+	Description: finalText,
+})
 }
 
 // Forbidden returns an HTTP 403 Forbidden response whose body is the
@@ -178,9 +178,9 @@ func (c *Controller) Forbidden(msg string, objs ...interface{}) Result {
 	}
 	c.Response.Status = http.StatusForbidden
 	return c.RenderError(&Error{
-		Title:       "Forbidden",
-		Description: finalText,
-	})
+	Title:       "Forbidden",
+	Description: finalText,
+})
 }
 
 // RenderFile returns a file, either displayed inline or downloaded
@@ -250,7 +250,7 @@ func (c *Controller) SetAction(controllerName, methodName string) error {
 	}
 
 	c.Name, c.MethodName = c.Type.Type.Name(), c.MethodType.Name
-	c.Action = c.Name + "." + c.MethodName
+	c.Action = c.Name+"."+c.MethodName
 
 	// Instantiate the controller.
 	c.AppController = initNewAppController(c.Type, c).Interface()
@@ -373,4 +373,10 @@ func RegisterController(c interface{}, methods []*MethodType) {
 		ControllerIndexes: findControllers(elem),
 	}
 	TRACE.Printf("Registered controller: %s", elem.Name())
+}
+
+func MapController(m *map[string]string) {
+	for k, _ := range controllers {
+		(*m)[k] = ""
+	}
 }
