@@ -375,8 +375,12 @@ func RegisterController(c interface{}, methods []*MethodType) {
 	TRACE.Printf("Registered controller: %s", elem.Name())
 }
 
+/*##################################小白#########################################*/
+
 func MapController(m *map[string]string) {
 	for k, _ := range controllers {
 		(*m)[k] = ""
 	}
 }
+
+/*##################################小白#########################################*/

@@ -1,8 +1,9 @@
 package revel
 
 import (
-	"crypto/rand"
-	"encoding/hex"
+	"WEB/WebCore/Module/ssdb"
+	"code.google.com/p/go-uuid/uuid"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -31,7 +32,7 @@ func init() {
 	OnAppStart(func() {
 		var err error
 		if expiresString, ok := Config.String("session.expires"); !ok {
-			expireAfterDuration = 30 * 24 * time.Hour
+			expireAfterDuration = 30*24*time.Hour
 		} else if expiresString == "session" {
 			expireAfterDuration = 0
 		} else if expireAfterDuration, err = time.ParseDuration(expiresString); err != nil {
@@ -46,13 +47,17 @@ func (s Session) Id() string {
 	if sessionIdStr, ok := s[SESSION_ID_KEY]; ok {
 		return sessionIdStr
 	}
-
+	/*
 	buffer := make([]byte, 32)
 	if _, err := rand.Read(buffer); err != nil {
 		panic(err)
 	}
-
 	s[SESSION_ID_KEY] = hex.EncodeToString(buffer)
+	*/
+	uid := uuid.NewUUID()
+	str := base64.StdEncoding.EncodeToString([]byte(uid))
+	s[SESSION_ID_KEY] = str[:len(str)-2]
+
 	return s[SESSION_ID_KEY]
 }
 
@@ -78,7 +83,7 @@ func (s Session) cookie() *http.Cookie {
 		if strings.Contains(value, "\x00") {
 			panic("Session values may not have null bytes")
 		}
-		sessionValue += "\x00" + key + ":" + value + "\x00"
+		sessionValue += "\x00"+key+":"+value+"\x00"
 	}
 
 	sessionData := url.QueryEscape(sessionValue)
@@ -125,8 +130,8 @@ func getSessionFromCookie(cookie *http.Cookie) Session {
 	}
 
 	ParseKeyValueCookie(data, func(key, val string) {
-		session[key] = val
-	})
+			session[key] = val
+		})
 
 	if sessionTimeoutExpiredOrMissing(session) {
 		session = make(Session)
@@ -183,3 +188,151 @@ func (s Session) SetNoExpiration() {
 func (s Session) SetDefaultExpiration() {
 	delete(s, TIMESTAMP_KEY)
 }
+
+/*##################################小白#########################################*/
+
+func (s Session) Start() {
+	if s["ENV_START"] == "1" {
+		return
+	}
+	_, session_ok := s[SESSION_ID_KEY]
+	if session_ok == true {
+		seesionValue := SessionGet(SESSION_ID_KEY)
+		ParseKeyValueCookie(seesionValue, func(key, val string) {
+				s[key] = val
+			})
+		s["ENV_START"] = "1"
+	}
+}
+
+func (s Session) Save() {
+	delete(s, "ENV_START")
+	seesionValue := ""
+	for key, value := range s {
+		if key == SESSION_ID_KEY {
+			continue
+		}
+		if strings.ContainsAny(key, ":\x00") {
+			panic("Session keys may not have colons or null bytes")
+		}
+		if strings.Contains(value, "\x00") {
+			panic("Session values may not have null bytes")
+		}
+		seesionValue += "\x00"+key+":"+value+"\x00"
+	}
+
+	SessionSet(SESSION_ID_KEY, seesionValue)
+}
+
+func SessionFilterNew(c *Controller, fc []Filter) {
+	c.Session = restoreSessionNew(c.Request.Request)
+	sessionWasEmpty := len(c.Session) == 0
+
+	// Make session vars available in templates as {{.session.xyz}}
+	c.RenderArgs["session"] = c.Session
+
+	fc[0](c, fc[1:])
+
+	// Store the signed session if it could have changed.
+	if len(c.Session) > 0 || !sessionWasEmpty {
+		//c.SetCookie(c.Session.cookie())
+		var cookiesValue string
+		ts := time.Now().Add(24 * time.Hour)
+		//时间加上session_id生成id
+		cookiesValue += "\x00"+TIMESTAMP_KEY+":"+getSessionExpirationCookie(ts)+"\x00"
+		cookiesValue += "\x00"+SESSION_ID_KEY+":"+c.Session.Id()+"\x00"
+
+		cookiesData := url.QueryEscape(cookiesValue)
+		c.SetCookie(&http.Cookie{
+		Name:     "_S",
+		Value:    cookiesData,
+		Path:     "/",
+		HttpOnly: false,
+		Secure:   false,
+		Expires:  ts.UTC(),
+	})
+	}
+}
+
+func SessionDel(Id string) {
+	con, err := ssdb.Connect(session_ip, 6379)
+	if err != nil {
+		panic(err)
+	}
+	_, err = con.Do("del", Id)
+	if err != nil {
+		panic(err)
+	}
+	//return num
+	con.Close()
+}
+
+var session_ip string
+
+func InitSession() {
+	var err bool
+	session_ip, err = Config.String("session_ip")
+	if err != true {
+		panic("无法初始化session_ip")
+	} else {
+		fmt.Println("初始化session_ip成功")
+	}
+}
+
+//根据hash key和字段获取数据
+func SessionGet(key string) string {
+	con, err := ssdb.Connect(session_ip, 6379)
+	if err != nil {
+		panic(err)
+	}
+	val, err := con.Do("get", key)
+	con.Close()
+
+	if len(val) == 2 && val[0] == "ok" {
+		return val[1]
+	}
+	return ""
+}
+
+//写入session进入ssdb
+func SessionSet(key, val string) bool {
+	con, err := ssdb.Connect(session_ip, 6379)
+	if err != nil {
+		panic(err)
+	}
+	resp, err := con.Do("set", key, val)
+	con.Close()
+
+	if len(resp) == 1 && resp[0] == "ok" {
+		return true
+	} else {
+		return false
+	}
+}
+
+func restoreSessionNew(req *http.Request) Session {
+	cookie, err := req.Cookie("_S")
+	if err != nil {
+		return make(Session)
+	} else {
+		return getSessionFromCookieNew(cookie)
+	}
+}
+
+func getSessionFromCookieNew(cookie *http.Cookie) Session {
+	session := make(Session)
+
+	data := cookie.Value
+
+	ParseKeyValueCookie(data, func(key, val string) {
+			session[key] = val
+		})
+
+	if sessionTimeoutExpiredOrMissing(session) {
+		session = make(Session)
+	}
+
+	return session
+}
+
+/*##################################小白#########################################*/
