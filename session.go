@@ -197,7 +197,7 @@ func (s Session) Start() {
 	}
 	_, session_ok := s[SESSION_ID_KEY]
 	if session_ok == true {
-		seesionValue := SessionGet(SESSION_ID_KEY)
+		seesionValue := SessionGet(s[SESSION_ID_KEY])
 		ParseKeyValueCookie(seesionValue, func(key, val string) {
 				s[key] = val
 			})
@@ -221,7 +221,7 @@ func (s Session) Save() {
 		seesionValue += "\x00"+key+":"+value+"\x00"
 	}
 
-	SessionSet(SESSION_ID_KEY, seesionValue)
+	SessionSet(s[SESSION_ID_KEY], seesionValue)
 }
 
 func SessionFilterNew(c *Controller, fc []Filter) {
@@ -233,6 +233,10 @@ func SessionFilterNew(c *Controller, fc []Filter) {
 
 	fc[0](c, fc[1:])
 
+	if (len(c.Session) == 0) {
+		c.Session.Id()
+	}
+
 	// Store the signed session if it could have changed.
 	if len(c.Session) > 0 || !sessionWasEmpty {
 		//c.SetCookie(c.Session.cookie())
@@ -242,15 +246,21 @@ func SessionFilterNew(c *Controller, fc []Filter) {
 		cookiesValue += "\x00"+TIMESTAMP_KEY+":"+getSessionExpirationCookie(ts)+"\x00"
 		cookiesValue += "\x00"+SESSION_ID_KEY+":"+c.Session.Id()+"\x00"
 
+		var host = c.Request.Host
+		if (strings.Count(host, ".") > 1) {
+			host = host[strings.Index(host, ".")+1:]
+		}
+
 		cookiesData := url.QueryEscape(cookiesValue)
-		c.SetCookie(&http.Cookie{
-		Name:     "_S",
-		Value:    cookiesData,
-		Path:     "/",
-		HttpOnly: false,
-		Secure:   false,
-		Expires:  ts.UTC(),
-	})
+			c.SetCookie(&http.Cookie{
+			Name:     "_S",
+			Domain:   host,
+			Value:    cookiesData,
+			Path:     "/",
+			HttpOnly: false,
+			Secure:   false,
+			Expires:  ts.UTC(),
+		})
 	}
 }
 
