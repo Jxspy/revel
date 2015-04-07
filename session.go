@@ -32,7 +32,7 @@ func init() {
 	OnAppStart(func() {
 		var err error
 		if expiresString, ok := Config.String("session.expires"); !ok {
-			expireAfterDuration = 30*24*time.Hour
+			expireAfterDuration = 30 * 24 * time.Hour
 		} else if expiresString == "session" {
 			expireAfterDuration = 0
 		} else if expireAfterDuration, err = time.ParseDuration(expiresString); err != nil {
@@ -48,11 +48,11 @@ func (s Session) Id() string {
 		return sessionIdStr
 	}
 	/*
-	buffer := make([]byte, 32)
-	if _, err := rand.Read(buffer); err != nil {
-		panic(err)
-	}
-	s[SESSION_ID_KEY] = hex.EncodeToString(buffer)
+		buffer := make([]byte, 32)
+		if _, err := rand.Read(buffer); err != nil {
+			panic(err)
+		}
+		s[SESSION_ID_KEY] = hex.EncodeToString(buffer)
 	*/
 	uid := uuid.NewUUID()
 	str := base64.StdEncoding.EncodeToString([]byte(uid))
@@ -83,7 +83,7 @@ func (s Session) cookie() *http.Cookie {
 		if strings.Contains(value, "\x00") {
 			panic("Session values may not have null bytes")
 		}
-		sessionValue += "\x00"+key+":"+value+"\x00"
+		sessionValue += "\x00" + key + ":" + value + "\x00"
 	}
 
 	sessionData := url.QueryEscape(sessionValue)
@@ -130,8 +130,8 @@ func getSessionFromCookie(cookie *http.Cookie) Session {
 	}
 
 	ParseKeyValueCookie(data, func(key, val string) {
-			session[key] = val
-		})
+		session[key] = val
+	})
 
 	if sessionTimeoutExpiredOrMissing(session) {
 		session = make(Session)
@@ -199,8 +199,8 @@ func (s Session) Start() {
 	if session_ok == true {
 		seesionValue := SessionGet(s[SESSION_ID_KEY])
 		ParseKeyValueCookie(seesionValue, func(key, val string) {
-				s[key] = val
-			})
+			s[key] = val
+		})
 		s["ENV_START"] = "1"
 	}
 }
@@ -218,7 +218,7 @@ func (s Session) Save() {
 		if strings.Contains(value, "\x00") {
 			panic("Session values may not have null bytes")
 		}
-		seesionValue += "\x00"+key+":"+value+"\x00"
+		seesionValue += "\x00" + key + ":" + value + "\x00"
 	}
 
 	SessionSet(s[SESSION_ID_KEY], seesionValue)
@@ -233,7 +233,7 @@ func SessionFilterNew(c *Controller, fc []Filter) {
 
 	fc[0](c, fc[1:])
 
-	if (len(c.Session) == 0) {
+	if len(c.Session) == 0 {
 		c.Session.Id()
 	}
 
@@ -243,16 +243,16 @@ func SessionFilterNew(c *Controller, fc []Filter) {
 		var cookiesValue string
 		ts := time.Now().Add(24 * time.Hour)
 		//时间加上session_id生成id
-		cookiesValue += "\x00"+TIMESTAMP_KEY+":"+getSessionExpirationCookie(ts)+"\x00"
-		cookiesValue += "\x00"+SESSION_ID_KEY+":"+c.Session.Id()+"\x00"
+		cookiesValue += "\x00" + TIMESTAMP_KEY + ":" + getSessionExpirationCookie(ts) + "\x00"
+		cookiesValue += "\x00" + SESSION_ID_KEY + ":" + c.Session.Id() + "\x00"
 
 		var host = c.Request.Host
-		if (strings.Count(host, ".") > 1) {
+		if strings.Count(host, ".") > 1 {
 			host = host[strings.Index(host, ".")+1:]
 		}
 
 		cookiesData := url.QueryEscape(cookiesValue)
-			c.SetCookie(&http.Cookie{
+		c.SetCookie(&http.Cookie{
 			Name:     "_S",
 			Domain:   host,
 			Value:    cookiesData,
@@ -296,6 +296,9 @@ func SessionGet(key string) string {
 		panic(err)
 	}
 	val, err := con.Do("get", key)
+	if err != nil {
+		panic(err)
+	}
 	con.Close()
 
 	if len(val) == 2 && val[0] == "ok" {
@@ -311,8 +314,10 @@ func SessionSet(key, val string) bool {
 		panic(err)
 	}
 	resp, err := con.Do("set", key, val)
+	if err != nil {
+		panic(err)
+	}
 	con.Close()
-
 	if len(resp) == 1 && resp[0] == "ok" {
 		return true
 	} else {
@@ -335,8 +340,8 @@ func getSessionFromCookieNew(cookie *http.Cookie) Session {
 	data := cookie.Value
 
 	ParseKeyValueCookie(data, func(key, val string) {
-			session[key] = val
-		})
+		session[key] = val
+	})
 
 	if sessionTimeoutExpiredOrMissing(session) {
 		session = make(Session)
