@@ -278,6 +278,7 @@ func SessionDel(Id string) {
 }
 
 var session_ip string
+var ssdbkey string
 
 func InitSession() {
 	var err bool
@@ -287,19 +288,26 @@ func InitSession() {
 	} else {
 		fmt.Println("初始化session_ip成功")
 	}
+
+	ssdbkey, err = Config.String("ssdbkey")
+	if err != true {
+		panic("无法初始化ssdbkey")
+	} else {
+		fmt.Println("初始化ssdbkey成功")
+	}
 }
 
 //根据hash key和字段获取数据
 func SessionGet(key string) string {
 	con, err := ssdb.Connect(session_ip, 6379)
+	defer con.Close()
 	if err != nil {
 		panic(err)
 	}
-	val, err := con.Do("get", key)
+	val, err := con.Do("get", ssdbkey+"_"+key)
 	if err != nil {
 		panic(err)
 	}
-	con.Close()
 
 	if len(val) == 2 && val[0] == "ok" {
 		return val[1]
@@ -310,14 +318,15 @@ func SessionGet(key string) string {
 //写入session进入ssdb
 func SessionSet(key, val string) bool {
 	con, err := ssdb.Connect(session_ip, 6379)
+	defer con.Close()
 	if err != nil {
 		panic(err)
 	}
-	resp, err := con.Do("set", key, val)
+	resp, err := con.Do("set", ssdbkey+"_"+key, val)
 	if err != nil {
 		panic(err)
 	}
-	con.Close()
+
 	if len(resp) == 1 && resp[0] == "ok" {
 		return true
 	} else {
